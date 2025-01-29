@@ -141,7 +141,7 @@ ctl.!default {
     type bluealsa
 }
 EOF
-elif [[ " $* " =~ " --audio-conf "]]
+elif [[ " $* " =~ " --audio-conf "]]; then
     echo "Asound.conf won't be configured"
 else 
     sudo tee /etc/asound.conf > /dev/null <<'EOF'
