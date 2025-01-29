@@ -141,7 +141,9 @@ ctl.!default {
     type bluealsa
 }
 EOF
-elif [[ " $* " != " --audio-conf "]]
+elif [[ " $* " =~ " --audio-conf "]]
+    echo "Asound.conf won't be configured"
+else 
     sudo tee /etc/asound.conf > /dev/null <<'EOF'
 pcm.!default { type hw card Headphones device 0 }
 ctl.!default { type hw card Headphones }
@@ -197,7 +199,24 @@ sudo nginx -t && sudo systemctl restart nginx
 
 sudo systemctl status --no-pager nginx
 
-if [[ " $* " != " --no-build " ]]; then
+if [[ " $* " == " --no-build " ]]; then
+    docker ps -aq -f name=gpt-home | xargs -r docker rm -f
+    docker pull judahpaul/gpt-home
+    docker run --restart unless-stopped -d --name gpt-home \
+        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
+        --privileged \
+        --net=host \
+        --tmpfs /run \
+        --tmpfs /run/lock \
+        -v /dev/snd:/dev/snd \
+        -v /dev/shm:/dev/shm \
+        -v /usr/share/alsa:/usr/share/alsa \
+        -v /var/run/dbus:/var/run/dbus \
+        judahpaul/gpt-home
+    docker ps -a | grep gpt-home
+    sleep 10
+    docker exec -i gpt-home supervisorctl status
+else
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
     git clone https://github.com/Populaatti/gpt-home ~/gpt-home
     cd ~/gpt-home
@@ -265,21 +284,3 @@ if [[ " $* " != " --no-build " ]]; then
     docker exec -i gpt-home supervisorctl status
 fi
 
-if [[ " $* " == " --no-build " ]]; then
-    docker ps -aq -f name=gpt-home | xargs -r docker rm -f
-    docker pull judahpaul/gpt-home
-    docker run --restart unless-stopped -d --name gpt-home \
-        --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
-        --privileged \
-        --net=host \
-        --tmpfs /run \
-        --tmpfs /run/lock \
-        -v /dev/snd:/dev/snd \
-        -v /dev/shm:/dev/shm \
-        -v /usr/share/alsa:/usr/share/alsa \
-        -v /var/run/dbus:/var/run/dbus \
-        judahpaul/gpt-home
-    docker ps -a | grep gpt-home
-    sleep 10
-    docker exec -i gpt-home supervisorctl status
-fi
