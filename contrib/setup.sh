@@ -121,10 +121,32 @@ sudo systemctl enable docker
 sudo systemctl start docker
 
 # Create ALSA config (asound.conf, adjust as needed)
-sudo tee /etc/asound.conf > /dev/null <<EOF
+if [[ " $* " =~ " --bt " ]]; then
+    sudo tee /etc/asound.conf > /dev/null <<'EOF'
+pcm.!default {
+    type asym
+    playback {
+        type bluealsa
+        device "11:22:33:44:55:66"
+        profile "a2dp"
+    }
+    capture {
+        type hw
+        card 2
+        device 0
+    }
+}
+
+ctl.!default {
+    type bluealsa
+}
+EOF
+elif [[ " $* " != " --audio-conf "]]
+    sudo tee /etc/asound.conf > /dev/null <<'EOF'
 pcm.!default { type hw card Headphones device 0 }
 ctl.!default { type hw card Headphones }
 EOF
+fi
 
 # Install Docker Buildx plugin
 mkdir -p $HOME/.docker/cli-plugins
@@ -175,9 +197,9 @@ sudo nginx -t && sudo systemctl restart nginx
 
 sudo systemctl status --no-pager nginx
 
-if [[ "$1" != "--no-build" ]]; then
+if [[ " $* " != " --no-build " ]]; then
     [ -d ~/gpt-home ] && rm -rf ~/gpt-home
-    git clone https://github.com/judahpaul16/gpt-home ~/gpt-home
+    git clone https://github.com/Populaatti/gpt-home ~/gpt-home
     cd ~/gpt-home
     echo "Checking if the container 'gpt-home' is already running..."
     if [ $(docker ps -q -f name=gpt-home) ]; then
@@ -214,8 +236,11 @@ if [[ "$1" != "--no-build" ]]; then
     echo "Running container 'gpt-home' from image 'gpt-home'..."
     docker run --restart unless-stopped -d --name gpt-home \
         --mount type=bind,source=/etc/asound.conf,target=/etc/asound.conf \
-        --privileged \
+        --mount type=bind,source=/var/run/dbus/system_bus_socket,target=/var/run/dbus/system_bus_socket \
         --net=host \
+        -group-add audio \
+        --device /dev/snd \
+        --device /dev/bus/usb \
         --tmpfs /run \
         --tmpfs /run/lock \
         -v ~/gpt-home:/app \
@@ -223,6 +248,10 @@ if [[ "$1" != "--no-build" ]]; then
         -v /dev/shm:/dev/shm \
         -v /usr/share/alsa:/usr/share/alsa \
         -v /var/run/dbus:/var/run/dbus \
+        -v /etc/alsa/conf.d:/etc/alsa/conf.d \
+        -v /var/lib/bluetooth:/var/lib/bluetooth \
+        --cap-add=SYS_ADMIN \
+        --cap-add=NET_ADMIN \
         gpt-home
 
     echo "Container 'gpt-home' is now running."
@@ -236,7 +265,7 @@ if [[ "$1" != "--no-build" ]]; then
     docker exec -i gpt-home supervisorctl status
 fi
 
-if [[ "$1" == "--no-build" ]]; then
+if [[ " $* " == " --no-build " ]]; then
     docker ps -aq -f name=gpt-home | xargs -r docker rm -f
     docker pull judahpaul/gpt-home
     docker run --restart unless-stopped -d --name gpt-home \
