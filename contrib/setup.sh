@@ -69,7 +69,8 @@ function install() {
             sudo yes | add-apt-repository universe >/dev/null 2>&1 || true
             sudo apt update || true
             if [ "$package" == "docker" ]; then
-                sudo apt-get install -y docker.io
+                sudo apt-get update && sudo apt-get install -y ca-certificates curl
+                curl -fsSL https://get.docker.com | sudo sh
             else
                 sudo apt-get install -y "$package"
             fi
